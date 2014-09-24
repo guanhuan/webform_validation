@@ -148,6 +148,20 @@ function webform_validation_webform_validation_validators() {
       'max_components' => 2,
       'description' => t('Compare two values for greater than or less than, or equal to.'),
     ),
+    'date_comparison' => array(
+      'name' => t('Compare date with a customized date'),
+      'component_types' => array(
+        'date',
+      ),
+      'custom_error' => TRUE,
+      'custom_data' => array(
+        'label' => t('Comparison operator'),
+        'description' => t('Specify the comparison operator and the parameter you want to use, separate by a comma. The operator must be one of: >, >=, <, <=. The param should be valid string for php strtotime() functon, e.g. "now", "+1 day", "10 September 2000"...'),
+      ),
+      'min_components' => 1,
+      'max_components' => 1,
+      'description' => t('Compare two values for greater than or less than, or equal to.'),
+    ),
     'unique' => array(
       'name' => t('Unique values'),
       'component_types' => array(
@@ -652,6 +666,71 @@ function webform_validation_webform_validation_validate($validator_name, $items,
         $errors[$entry[2]['key']] = _webform_validation_i18n_error_message($rule);
       }
       return $errors;
+    case 'date_comparison':
+    $entry[1]['key'] = key($items);
+    $value = array_shift($items);
+    if ($components[$entry[1]['key']]['type'] === 'date') {
+      if (checkdate((int) $value['month'], (int) $value['day'], (int) $value['year'])) {
+        $entry[1]['value'] = date('Y-m-d', mktime(0, 0, 0, (int) $value['month'], (int) $value['day'], (int) $value['year']));
+      }
+      else {
+        $entry[1]['value'] = NULL;
+      }
+    }
+    elseif ($components[$entry[1]['key']]['type'] === 'time') {
+      $time = $value['hour'] . ':' . $value['minute'];
+      if (!empty($value['ampm'])) {
+        $time .= ' ' . $value['ampm'];
+      }
+      $time = strtotime($time);
+      if ($time) {
+        $entry[1]['value'] = date('H:i', $time);
+      }
+      else {
+        $entry[1]['value'] = NULL;
+      }
+    }
+    else {
+      $entry[1]['value'] = _webform_validation_flatten_array($value);
+    }
+    
+    $params = explode(",", $rule['data'], 2);
+    $entry[2]['value'] = date('Y-m-d', strtotime(trim($params[1])));
+    
+
+    // Don't validate if either are empty.
+    if ((string) $entry[1]['value'] === '' || (string) $entry[2]['value'] === '') {
+      return array();
+    }
+
+    $error = FALSE;
+    switch (trim($params[0])) {
+      case '>':
+        if (!($entry[1]['value'] > $entry[2]['value'])) {
+          $error = TRUE;
+        }
+        break;
+      case '>=':
+        if (!($entry[1]['value'] >= $entry[2]['value'])) {
+          $error = TRUE;
+        }
+        break;
+      case '<':
+        if (!($entry[1]['value'] < $entry[2]['value'])) {
+          $error = TRUE;
+        }
+        break;
+      case '<=':
+        if (!($entry[1]['value'] <= $entry[2]['value'])) {
+          $error = TRUE;
+        }
+        break;
+    }
+
+    if ($error) {
+      $errors[$entry[2]['key']] = _webform_validation_i18n_error_message($rule);
+    }
+    return $errors;
     case 'unique':
       foreach ($items as $key => $val) {
         $items[$key] = _webform_validation_flatten_array($val);
